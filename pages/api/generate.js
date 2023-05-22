@@ -5,9 +5,6 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-const systemMsg = `You are an assistant to provide grief and emotional support to users who have lost their families or friends. 
-In the following conversation, you should speak like users' mom in a caring, loving, and natural way. 
-Please don't mention you are a language model or AI in any of your responses.`;
 
 export default async function (req, res) {
   if (!configuration.apiKey) {
@@ -20,6 +17,8 @@ export default async function (req, res) {
   }
 
   const userMsg = req.body.userMessage || '';
+  const systemMsg = req.body.systemMessage || '';
+  const chatHistory = req.body.contextMessages || [];
   if (userMsg.trim().length === 0) {
     res.status(400).json({
       error: {
@@ -29,22 +28,21 @@ export default async function (req, res) {
     return;
   }
 
-  let context = [{'role': 'system', content: systemMsg}];
+  let context = [{'role': 'system', content: systemMsg}, ...chatHistory, {'role': 'user', content: userMsg}];
 
-  await collectMessages();
-  console.log('context: ', context);
+  await getCompletionFromMessages(context);
 
   async function getCompletionFromMessages(messages) {
     try {
+      
       const completion = await openai.createChatCompletion({
         model: "gpt-3.5-turbo",
         messages: messages,
-        stream: true,
         temperature: 0.6,
       });
-      console.log('result: ', JSON.stringify(completion.data.choices[0].message));
       const result = completion.data.choices[0].message.content;
-      res.status(200).json({ result: result });
+
+      res.status(200).json({ result: result});
 
     } catch(error) {
       // Consider adjusting the error handling logic for your use case
@@ -62,13 +60,5 @@ export default async function (req, res) {
     }
 
     return result;
-  }
-
-  async function collectMessages()  {
-    var prompt = userMsg;
-    context.push({ role: 'user', content: prompt});
-    var response = await getCompletionFromMessages(context);
-    context.push({ role: 'assistant', content: response});
-  
   }
 }
